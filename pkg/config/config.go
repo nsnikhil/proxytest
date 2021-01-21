@@ -7,14 +7,20 @@ import (
 
 type Config interface {
 	ParamConfig() ParamConfig
+	RateLimitConfig() RateLimitConfig
 }
 
 type appConfig struct {
-	paramConfig ParamConfig
+	paramConfig     ParamConfig
+	rateLimitConfig RateLimitConfig
 }
 
 func (ac appConfig) ParamConfig() ParamConfig {
 	return ac.paramConfig
+}
+
+func (ac appConfig) RateLimitConfig() RateLimitConfig {
+	return ac.rateLimitConfig
 }
 
 func NewConfig(configFile string) Config {
@@ -27,6 +33,7 @@ func NewConfig(configFile string) Config {
 	}
 
 	return appConfig{
-		paramConfig: newParamConfig(),
+		paramConfig:     newParamConfig(),
+		rateLimitConfig: newRateLimitConfig(),
 	}
 }
