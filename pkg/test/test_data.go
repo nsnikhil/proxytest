@@ -25,12 +25,12 @@ type dummy struct {
 }
 
 func RandHTTPMethod() string {
-	idx := randInt(0, len(httpMethods)-1)
+	idx := RandInt(0, len(httpMethods)-1)
 	return httpMethods[idx]
 }
 
 func RandBody(t *testing.T) string {
-	d := dummy{Key: randInt(10, 100), Value: RandString(8)}
+	d := dummy{Key: RandInt(10, 100), Value: RandString(8)}
 
 	b, err := json.Marshal(&d)
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func RandBody(t *testing.T) string {
 	return string(b)
 }
 
-func randInt(min, max int) int {
+func RandInt(min, max int) int {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min+1) + min
 }
