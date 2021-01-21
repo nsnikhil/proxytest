@@ -1,0 +1,16 @@
+*.exe
+*.exe~
+*.dll
+*.so
+
+out
+.idea/
+*.iml
+*.DS_Store
+vendor/
+*.out
+*.log
+
+local.env
+
+playground.go
