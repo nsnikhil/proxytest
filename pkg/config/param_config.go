@@ -8,6 +8,7 @@ type ParamConfig interface {
 	HeadersKey() string
 	HTTPMethodKey() string
 	BodyKey() string
+	AllowInSecure() bool
 }
 
 type appParamConfig struct {
@@ -16,6 +17,7 @@ type appParamConfig struct {
 	headersKey    string
 	httpMethodKey string
 	bodyKey       string
+	allowInsecure bool
 }
 
 func (apc appParamConfig) ClientIDKey() string {
@@ -38,6 +40,10 @@ func (apc appParamConfig) BodyKey() string {
 	return apc.bodyKey
 }
 
+func (apc appParamConfig) AllowInSecure() bool {
+	return apc.allowInsecure
+}
+
 func newParamConfig() ParamConfig {
 	return appParamConfig{
 		clientIDKey:   getString("PARAM_CLIENT_ID_KEY"),
@@ -45,6 +51,7 @@ func newParamConfig() ParamConfig {
 		headersKey:    getString("PARAM_HEADERS_KEY"),
 		httpMethodKey: getString("PARAM_HTTP_METHOD_KEY"),
 		bodyKey:       getString("PARAM_BODY_KEY"),
+		allowInsecure: getBool("PARAM_ALLOW_INSECURE"),
 	}
 }
 
@@ -72,4 +79,9 @@ func (mock *MockParamConfig) HTTPMethodKey() string {
 func (mock *MockParamConfig) BodyKey() string {
 	args := mock.Called()
 	return args.String(0)
+}
+
+func (mock *MockParamConfig) AllowInSecure() bool {
+	args := mock.Called()
+	return args.Bool(0)
 }

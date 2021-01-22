@@ -2,6 +2,7 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/require"
 	"math/rand"
 	"net/http"
@@ -11,7 +12,12 @@ import (
 )
 
 const (
-	letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	letters           = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	MockClientIDKey   = "client-id"
+	MockURLKey        = "url"
+	MockHeadersKey    = "headers"
+	MockHttpMethodKey = "method"
+	MockBodyKey       = "body"
 )
 
 var httpMethods = []string{
@@ -58,6 +64,10 @@ func RandHeader(t *testing.T) string {
 
 func RandURL() string {
 	return "https://" + RandString(8) + ":443"
+}
+
+func RandInsecureURL() string {
+	return fmt.Sprintf("http://localhost:%d/%s", RandInt(8081, 9999), RandString(4))
 }
 
 func randStringFrom(n int, values string) string {

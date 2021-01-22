@@ -19,3 +19,11 @@ func getInt(config string, defaultVal ...int) int {
 
 	return viper.GetInt(config)
 }
+
+func getBool(config string, defaultVal ...bool) bool {
+	if len(defaultVal) > 0 {
+		viper.SetDefault(config, defaultVal[0])
+	}
+
+	return viper.GetBool(config)
+}

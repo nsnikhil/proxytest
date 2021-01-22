@@ -8,14 +8,6 @@ import (
 	"testing"
 )
 
-const (
-	mockClientIDKey   = "client-id"
-	mockURLKey        = "url"
-	mockHeadersKey    = "headers"
-	mockHttpMethodKey = "method"
-	mockBodyKey       = "body"
-)
-
 type parserSuite struct {
 	parser        parser.Parser
 	defaultParams map[string][]string
@@ -24,18 +16,19 @@ type parserSuite struct {
 
 func (ps *parserSuite) SetupSuite() {
 	mockConfig := &config.MockParamConfig{}
-	mockConfig.On("ClientIDKey").Return(mockClientIDKey)
-	mockConfig.On("URLKey").Return(mockURLKey)
-	mockConfig.On("HeadersKey").Return(mockHeadersKey)
-	mockConfig.On("HTTPMethodKey").Return(mockHttpMethodKey)
-	mockConfig.On("BodyKey").Return(mockBodyKey)
+	mockConfig.On("ClientIDKey").Return(test.MockClientIDKey)
+	mockConfig.On("URLKey").Return(test.MockURLKey)
+	mockConfig.On("HeadersKey").Return(test.MockHeadersKey)
+	mockConfig.On("HTTPMethodKey").Return(test.MockHttpMethodKey)
+	mockConfig.On("BodyKey").Return(test.MockBodyKey)
+	mockConfig.On("AllowInSecure").Return(false)
 
 	ps.defaultParams = map[string][]string{
-		mockClientIDKey:   {test.RandString(8)},
-		mockURLKey:        {test.RandURL()},
-		mockHeadersKey:    {test.RandHeader(ps.T())},
-		mockHttpMethodKey: {test.RandHTTPMethod()},
-		mockBodyKey:       {test.RandBody(ps.T())},
+		test.MockClientIDKey:   {test.RandString(8)},
+		test.MockURLKey:        {test.RandURL()},
+		test.MockHeadersKey:    {test.RandHeader(ps.T())},
+		test.MockHttpMethodKey: {test.RandHTTPMethod()},
+		test.MockBodyKey:       {test.RandBody(ps.T())},
 	}
 
 	ps.parser = parser.NewParser(mockConfig)
@@ -53,10 +46,10 @@ func (ps *parserSuite) TestParserSuccess() {
 			params: ps.defaultParams,
 		},
 		"test success when headers are missing": {
-			params: removeKey(mockHeadersKey, ps.defaultParams),
+			params: removeKey(test.MockHeadersKey, ps.defaultParams),
 		},
 		"test success when body is missing": {
-			params: removeKey(mockBodyKey, ps.defaultParams),
+			params: removeKey(test.MockBodyKey, ps.defaultParams),
 		},
 	}
 
@@ -79,46 +72,46 @@ func (ps *parserSuite) TestParserFailure() {
 			params: map[string][]string{},
 		},
 		"test parser failure when client id is empty": {
-			params: removeKey(mockClientIDKey, ps.defaultParams),
+			params: removeKey(test.MockClientIDKey, ps.defaultParams),
 		},
 		"test parser failure when url is missing": {
-			params: removeKey(mockURLKey, ps.defaultParams),
+			params: removeKey(test.MockURLKey, ps.defaultParams),
 		},
 		"test parser failure when url is empty": {
-			params: overriderKey(mockURLKey, "", ps.defaultParams),
+			params: overriderKey(test.MockURLKey, "", ps.defaultParams),
 		},
 		"test parser failure when url is invalid": {
-			params: overriderKey(mockURLKey, test.RandString(8), ps.defaultParams),
+			params: overriderKey(test.MockURLKey, test.RandString(8), ps.defaultParams),
 		},
 		"test parser failure when url is insecure": {
-			params: overriderKey(mockURLKey, "http:localhost:80", ps.defaultParams),
+			params: overriderKey(test.MockURLKey, "http:localhost:80", ps.defaultParams),
 		},
 		"test parser failure when headers string is empty": {
-			params: overriderKey(mockHeadersKey, "", ps.defaultParams),
+			params: overriderKey(test.MockHeadersKey, "", ps.defaultParams),
 		},
 		"test parser failure when headers is empty": {
-			params: overriderKey(mockHeadersKey, "{}", ps.defaultParams),
+			params: overriderKey(test.MockHeadersKey, "{}", ps.defaultParams),
 		},
 		"test parser failure when headers is invalid": {
-			params: overriderKey(mockHeadersKey, test.RandString(8), ps.defaultParams),
+			params: overriderKey(test.MockHeadersKey, test.RandString(8), ps.defaultParams),
 		},
 		"test parser failure when http method is missing": {
-			params: removeKey(mockHttpMethodKey, ps.defaultParams),
+			params: removeKey(test.MockHttpMethodKey, ps.defaultParams),
 		},
 		"test parser failure when http method is empty": {
-			params: overriderKey(mockHttpMethodKey, "", ps.defaultParams),
+			params: overriderKey(test.MockHttpMethodKey, "", ps.defaultParams),
 		},
 		"test parser failure when http method is invalid": {
-			params: overriderKey(mockHttpMethodKey, test.RandString(8), ps.defaultParams),
+			params: overriderKey(test.MockHttpMethodKey, test.RandString(8), ps.defaultParams),
 		},
 		"test parser failure when body string is empty": {
-			params: overriderKey(mockBodyKey, "", ps.defaultParams),
+			params: overriderKey(test.MockBodyKey, "", ps.defaultParams),
 		},
 		"test parser failure when body is empty": {
-			params: overriderKey(mockBodyKey, "{}", ps.defaultParams),
+			params: overriderKey(test.MockBodyKey, "{}", ps.defaultParams),
 		},
 		"test parser failure when body is invalid": {
-			params: overriderKey(mockBodyKey, test.RandString(8), ps.defaultParams),
+			params: overriderKey(test.MockBodyKey, test.RandString(8), ps.defaultParams),
 		},
 	}
 

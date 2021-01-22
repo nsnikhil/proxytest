@@ -23,14 +23,14 @@ var validMethods = map[string]bool{
 }
 
 type Parser interface {
-	Parse(params map[string][]string) (*RequestData, error)
+	Parse(params map[string][]string) (RequestData, error)
 }
 
 type paramsParser struct {
 	cfg config.ParamConfig
 }
 
-func (pp *paramsParser) Parse(params map[string][]string) (*RequestData, error) {
+func (pp *paramsParser) Parse(params map[string][]string) (RequestData, error) {
 	wrap := func(err error) error {
 		return liberr.WithArgs(liberr.Operation("Parser.Parse"), liberr.ValidationError, err)
 	}
@@ -44,33 +44,27 @@ func (pp *paramsParser) Parse(params map[string][]string) (*RequestData, error) 
 		return nil, wrap(errors.New("client id is empty"))
 	}
 
-	u, err := parseURL(pp.cfg.URLKey(), params)
+	urlD, err := parseURL(pp.cfg.AllowInSecure(), pp.cfg.URLKey(), params)
 	if err != nil {
 		return nil, wrap(err)
 	}
 
-	h, err := parseHeaders(pp.cfg.HeadersKey(), params)
+	headers, err := parseHeaders(pp.cfg.HeadersKey(), params)
 	if err != nil {
 		return nil, wrap(err)
 	}
 
-	m, err := parseHTTPMethod(pp.cfg.HTTPMethodKey(), params)
+	method, err := parseHTTPMethod(pp.cfg.HTTPMethodKey(), params)
 	if err != nil {
 		return nil, wrap(err)
 	}
 
-	b, err := parseBody(pp.cfg.BodyKey(), params)
+	body, err := parseBody(pp.cfg.BodyKey(), params)
 	if err != nil {
 		return nil, wrap(err)
 	}
 
-	return &RequestData{
-		clientID: clientID,
-		url:      u,
-		headers:  h,
-		method:   m,
-		body:     b,
-	}, nil
+	return NewRequestData(clientID, urlD, headers, method, body), nil
 }
 
 func parseBody(key string, params map[string][]string) (map[string]interface{}, error) {
@@ -110,7 +104,7 @@ func parseHTTPMethod(key string, params map[string][]string) (string, error) {
 	return method, nil
 }
 
-func parseURL(key string, params map[string][]string) (*url.URL, error) {
+func parseURL(allowInsecure bool, key string, params map[string][]string) (*url.URL, error) {
 	rawURL, ok := getFirst(key, params)
 	if !ok {
 		return nil, errors.New("url is empty")
@@ -119,6 +113,10 @@ func parseURL(key string, params map[string][]string) (*url.URL, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err
+	}
+
+	if allowInsecure {
+		return u, nil
 	}
 
 	if u.Scheme != "https" || u.Port() != "443" {

@@ -14,7 +14,7 @@ func (ac appHTTPClientConfig) TimeOut() int {
 	return ac.timeout
 }
 
-func NewHTTPClientConfig() HTTPClientConfig {
+func newHTTPClientConfig() HTTPClientConfig {
 	return appHTTPClientConfig{
 		timeout: getInt("CLIENT_TIMEOUT_IN_SEC"),
 	}
