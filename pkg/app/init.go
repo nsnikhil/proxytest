@@ -18,8 +18,9 @@ import (
 func initHTTPServer(configFile string) server.Server {
 	cfg := config.NewConfig(configFile)
 	lgr := initLogger(cfg)
+	pr := reporters.NewPrometheus()
 	svc := initService(cfg)
-	rt := initRouter(lgr, svc)
+	rt := initRouter(lgr, pr, svc)
 	return server.NewServer(cfg, lgr, rt)
 }
 
@@ -31,8 +32,8 @@ func initService(cfg config.Config) proxy.Service {
 	return proxy.NewService(pr, rt, cl)
 }
 
-func initRouter(lgr reporters.Logger, svc proxy.Service) http.Handler {
-	return router.NewRouter(lgr, svc)
+func initRouter(lgr reporters.Logger, pr reporters.Prometheus, svc proxy.Service) http.Handler {
+	return router.NewRouter(lgr, pr, svc)
 }
 
 func initLogger(cfg config.Config) reporters.Logger {

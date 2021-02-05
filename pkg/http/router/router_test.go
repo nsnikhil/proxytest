@@ -12,7 +12,7 @@ import (
 )
 
 func TestRouter(t *testing.T) {
-	r := router.NewRouter(&reporters.MockLogger{}, &proxy.MockService{})
+	r := router.NewRouter(&reporters.MockLogger{}, &reporters.MockPrometheus{}, &proxy.MockService{})
 
 	rf := func(method, path string) *http.Request {
 		req, err := http.NewRequest(method, path, nil)

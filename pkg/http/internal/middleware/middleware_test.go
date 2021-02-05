@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
@@ -81,5 +82,109 @@ func testWithError(t *testing.T, expectedCode int, expectedBody, expectedLog str
 
 	if len(expectedLog) != 0 {
 		assert.True(t, strings.Contains(buf.String(), expectedLog))
+	}
+}
+
+func TestWithPrometheus(t *testing.T) {
+	type prometheusTest struct {
+		method   string
+		argument []interface{}
+	}
+
+	pt := func(method string, args ...interface{}) prometheusTest {
+		return prometheusTest{
+			method:   method,
+			argument: args,
+		}
+	}
+
+	testCases := []struct {
+		name         string
+		actualResult func() (*reporters.MockPrometheus, []prometheusTest)
+	}{
+		{
+			name: "test prometheus middleware for success",
+			actualResult: func() (*reporters.MockPrometheus, []prometheusTest) {
+				w := httptest.NewRecorder()
+				r, err := http.NewRequest(http.MethodGet, "/random", nil)
+				require.NoError(t, err)
+
+				th := func(resp http.ResponseWriter, req *http.Request) {
+					resp.WriteHeader(http.StatusOK)
+				}
+
+				mockPrometheus := &reporters.MockPrometheus{}
+				mockPrometheus.On("ReportAttempt", "random")
+				mockPrometheus.On("ReportSuccess", "random")
+				mockPrometheus.On("Observe", "random", mock.Anything)
+
+				middleware.WithPrometheus(mockPrometheus, "random", th)(w, r)
+
+				return mockPrometheus, []prometheusTest{
+					pt("ReportAttempt", "random"),
+					pt("ReportSuccess", "random"),
+					pt("Observe", "random", mock.Anything),
+				}
+			},
+		},
+		{
+			name: "test prometheus middleware for 400 error",
+			actualResult: func() (*reporters.MockPrometheus, []prometheusTest) {
+				w := httptest.NewRecorder()
+				r, err := http.NewRequest(http.MethodGet, "/random", nil)
+				require.NoError(t, err)
+
+				th := func(resp http.ResponseWriter, req *http.Request) {
+					resp.WriteHeader(http.StatusBadRequest)
+				}
+
+				mockPrometheus := &reporters.MockPrometheus{}
+				mockPrometheus.On("ReportAttempt", "random")
+				mockPrometheus.On("ReportFailure", "random")
+				mockPrometheus.On("Observe", "random", mock.Anything)
+
+				middleware.WithPrometheus(mockPrometheus, "random", th)(w, r)
+
+				return mockPrometheus, []prometheusTest{
+					pt("ReportAttempt", "random"),
+					pt("ReportFailure", "random"),
+					pt("Observe", "random", mock.Anything),
+				}
+			},
+		},
+		{
+			name: "test statsd middleware for 500 error",
+			actualResult: func() (*reporters.MockPrometheus, []prometheusTest) {
+				w := httptest.NewRecorder()
+				r, err := http.NewRequest(http.MethodGet, "/random", nil)
+				require.NoError(t, err)
+
+				th := func(resp http.ResponseWriter, req *http.Request) {
+					resp.WriteHeader(http.StatusInternalServerError)
+				}
+
+				mockPrometheus := &reporters.MockPrometheus{}
+				mockPrometheus.On("ReportAttempt", "random")
+				mockPrometheus.On("ReportFailure", "random")
+				mockPrometheus.On("Observe", "random", mock.Anything)
+
+				middleware.WithPrometheus(mockPrometheus, "random", th)(w, r)
+
+				return mockPrometheus, []prometheusTest{
+					pt("ReportAttempt", "random"),
+					pt("ReportFailure", "random"),
+					pt("Observe", "random", mock.Anything),
+				}
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cl, res := testCase.actualResult()
+			for _, r := range res {
+				cl.AssertCalled(t, r.method, r.argument...)
+			}
+		})
 	}
 }
