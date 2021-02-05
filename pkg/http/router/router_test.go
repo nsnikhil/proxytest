@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
-	"proxytest/pkg/config"
 	"proxytest/pkg/http/router"
 	"proxytest/pkg/proxy"
 	reporters "proxytest/pkg/reporting"
@@ -13,10 +12,7 @@ import (
 )
 
 func TestRouter(t *testing.T) {
-	mockConfig := &config.MockConfig{}
-	mockConfig.On("Env").Return("test")
-
-	r := router.NewRouter(mockConfig, &reporters.MockLogger{}, &proxy.MockService{})
+	r := router.NewRouter(&reporters.MockLogger{}, &proxy.MockService{})
 
 	rf := func(method, path string) *http.Request {
 		req, err := http.NewRequest(method, path, nil)
