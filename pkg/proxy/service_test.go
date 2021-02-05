@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"net/http"
 	"net/url"
@@ -67,7 +68,7 @@ func (ss *serviceSuite) SetupSuite() {
 	mockRateLimiter.On("Check", clientID).Return(true)
 
 	mockHTTPClient := &client.MockHTTPClient{}
-	mockHTTPClient.On("Do", proxyReq).Return(&http.Response{}, nil)
+	mockHTTPClient.On("Do", mock.AnythingOfType("*context.emptyCtx"), proxyReq).Return(&http.Response{}, nil)
 
 	ss.clientID = clientID
 	ss.params = params
@@ -135,7 +136,7 @@ func (ss *serviceSuite) TestProxyFailure() {
 			parser: func() parser.Parser { return ss.parser },
 			client: func() client.HTTPClient {
 				mockHTTPClient := &client.MockHTTPClient{}
-				mockHTTPClient.On("Do", ss.proxyReq).
+				mockHTTPClient.On("Do", mock.AnythingOfType("*context.emptyCtx"), ss.proxyReq).
 					Return(&http.Response{}, errors.New("client error"))
 
 				return mockHTTPClient

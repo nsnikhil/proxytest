@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"fmt"
 	"github.com/stretchr/testify/suite"
 	"net/http"
@@ -41,7 +42,7 @@ func (cs *clientSuite) TestHTTPClientDoSuccess() {
 
 	req.Header = http.Header{"Timeout": {"0"}}
 
-	res, err := cs.client.Do(req)
+	res, err := cs.client.Do(context.Background(), req)
 	cs.Require().NoError(err)
 
 	cs.Assert().Equal(http.StatusOK, res.StatusCode)
@@ -51,7 +52,7 @@ func (cs *clientSuite) TestHTTPClientDoFailure() {
 	req, err := http.NewRequest(http.MethodGet, test.RandInsecureURL(), nil)
 	cs.Require().NoError(err)
 
-	_, err = cs.client.Do(req)
+	_, err = cs.client.Do(context.Background(), req)
 	cs.Require().Error(err)
 }
 
@@ -61,7 +62,7 @@ func (cs *clientSuite) TestHTTPClientDoTimeoutFailure() {
 
 	req.Header = http.Header{"Timeout": {"5"}}
 
-	_, err = cs.client.Do(req)
+	_, err = cs.client.Do(context.Background(), req)
 	cs.Require().Error(err)
 }
 

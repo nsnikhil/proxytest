@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"proxytest/pkg/client"
@@ -41,7 +42,7 @@ func (ps *proxyService) Proxy(req *http.Request) (*http.Response, error) {
 		return nil, wrap(err)
 	}
 
-	resp, err := ps.httpClient.Do(proxyReq)
+	resp, err := ps.httpClient.Do(context.Background(), proxyReq)
 	if err != nil {
 		return nil, wrap(err)
 	}
