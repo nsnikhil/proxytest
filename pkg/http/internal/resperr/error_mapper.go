@@ -23,6 +23,10 @@ func MapError(err error) ResponseError {
 		return NewResponseError(http.StatusBadRequest, t.Error())
 	case liberr.RateLimitedError:
 		return NewResponseError(http.StatusTooManyRequests, t.Error())
+	case liberr.ProxyError:
+		return NewResponseError(http.StatusBadGateway, t.Error())
+	case liberr.ProxyTimeOutError:
+		return NewResponseError(http.StatusGatewayTimeout, t.Error())
 	default:
 		return NewResponseError(defaultStatusCode, defaultMessage)
 	}

@@ -18,6 +18,18 @@ func TestErrorMap(t *testing.T) {
 			err:             liberr.WithArgs(liberr.ValidationError, errors.New("invalid data")),
 			expectedRespErr: resperr.NewResponseError(http.StatusBadRequest, "invalid data"),
 		},
+		"test mapping for rate limited error": {
+			err:             liberr.WithArgs(liberr.RateLimitedError, errors.New("rate limited")),
+			expectedRespErr: resperr.NewResponseError(http.StatusTooManyRequests, "rate limited"),
+		},
+		"test mapping for proxy error": {
+			err:             liberr.WithArgs(liberr.ProxyError, errors.New("some error")),
+			expectedRespErr: resperr.NewResponseError(http.StatusBadGateway, "some error"),
+		},
+		"test mapping for proxy timeout error": {
+			err:             liberr.WithArgs(liberr.ProxyTimeOutError, errors.New("timed out")),
+			expectedRespErr: resperr.NewResponseError(http.StatusGatewayTimeout, "timed out"),
+		},
 		"test mapping for lib error with no kind": {
 			err:             liberr.WithArgs(errors.New("database error")),
 			expectedRespErr: resperr.NewResponseError(http.StatusInternalServerError, "internal server error"),

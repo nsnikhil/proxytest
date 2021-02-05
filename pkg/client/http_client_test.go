@@ -47,6 +47,14 @@ func (cs *clientSuite) TestHTTPClientDoSuccess() {
 	cs.Assert().Equal(http.StatusOK, res.StatusCode)
 }
 
+func (cs *clientSuite) TestHTTPClientDoFailure() {
+	req, err := http.NewRequest(http.MethodGet, test.RandInsecureURL(), nil)
+	cs.Require().NoError(err)
+
+	_, err = cs.client.Do(req)
+	cs.Require().Error(err)
+}
+
 func (cs *clientSuite) TestHTTPClientDoTimeoutFailure() {
 	req, err := http.NewRequest(http.MethodGet, cs.url, nil)
 	cs.Require().NoError(err)
