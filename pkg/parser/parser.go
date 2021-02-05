@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"proxytest/pkg/config"
@@ -23,76 +25,56 @@ var validMethods = map[string]bool{
 }
 
 type Parser interface {
-	Parse(params map[string][]string) (RequestData, error)
+	Parse(req *http.Request) (RequestData, error)
 }
 
 type paramsParser struct {
 	cfg config.ParamConfig
 }
 
-func (pp *paramsParser) Parse(params map[string][]string) (RequestData, error) {
+func (pp *paramsParser) Parse(req *http.Request) (RequestData, error) {
 	wrap := func(err error) error {
 		return liberr.WithArgs(liberr.Operation("Parser.Parse"), liberr.ValidationError, err)
 	}
 
-	if params == nil {
-		return nil, wrap(errors.New("invalid params"))
-	}
+	builder := newRequestDataBuilder()
 
-	clientID, ok := getFirst(pp.cfg.ClientIDKey(), params)
-	if !ok {
-		return nil, wrap(errors.New("client id is empty"))
-	}
-
-	urlD, err := parseURL(pp.cfg.AllowInSecure(), pp.cfg.URLKey(), params)
+	err := parseQueryParams(pp.cfg, req.URL.Query(), builder)
 	if err != nil {
 		return nil, wrap(err)
 	}
 
-	headers, err := parseHeaders(pp.cfg.HeadersKey(), params)
+	err = parseRequestBody(pp.cfg, req.Body, builder)
 	if err != nil {
 		return nil, wrap(err)
 	}
 
-	method, err := parseHTTPMethod(pp.cfg.HTTPMethodKey(), params)
-	if err != nil {
-		return nil, wrap(err)
-	}
-
-	body, err := parseBody(pp.cfg.BodyKey(), params)
-	if err != nil {
-		return nil, wrap(err)
-	}
-
-	return NewRequestData(clientID, urlD, headers, method, body), nil
+	return builder.build(), nil
 }
 
-func parseBody(key string, params map[string][]string) (map[string]interface{}, error) {
-	var res map[string]interface{}
-
-	bodyData := params[key]
-	if len(bodyData) == 0 {
-		return res, nil
+func parseQueryParams(cfg config.ParamConfig, params map[string][]string, builder *requestDataBuilder) error {
+	if params == nil {
+		return errors.New("invalid params")
 	}
 
-	if len(bodyData[0]) == 0 {
-		return nil, errors.New("body is empty")
+	clientID, ok := getFirstHeader(cfg.ClientIDKey(), params)
+	if !ok {
+		return errors.New("client id is empty")
 	}
 
-	err := json.Unmarshal([]byte(bodyData[0]), &res)
+	method, err := parseHTTPMethod(cfg.HTTPMethodKey(), params)
 	if err != nil {
-		return nil, err
+		return errors.New("client id is empty")
 	}
 
-	if len(res) == 0 {
-		return nil, errors.New("body is empty")
-	}
+	builder.withClientID(clientID)
+	builder.withHTTPMethod(method)
 
-	return res, nil
+	return nil
 }
 
 func parseHTTPMethod(key string, params map[string][]string) (string, error) {
-	method, ok := getFirst(key, params)
+	method, ok := getFirstHeader(key, params)
 	if !ok {
 		return "", errors.New("http method is empty")
 	}
@@ -104,10 +86,69 @@ func parseHTTPMethod(key string, params map[string][]string) (string, error) {
 	return method, nil
 }
 
-func parseURL(allowInsecure bool, key string, params map[string][]string) (*url.URL, error) {
-	rawURL, ok := getFirst(key, params)
+//TODO: REFACTOR
+func parseRequestBody(cfg config.ParamConfig, body io.ReadCloser, builder *requestDataBuilder) error {
+	if body == nil {
+		return errors.New("body is nil")
+	}
+
+	b, err := ioutil.ReadAll(body)
+	if err != nil {
+		return err
+	}
+
+	var data map[string]interface{}
+
+	err = json.Unmarshal(b, &data)
+	if err != nil {
+		return err
+	}
+
+	urlD, err := parseURL(cfg.AllowInSecure(), cfg.URLKey(), data)
+	if err != nil {
+		return err
+	}
+
+	headers, err := parseHeaders(cfg.HeadersKey(), data)
+	if err != nil {
+		return err
+	}
+
+	proxyBody, err := parseBody(cfg.BodyKey(), data)
+	if err != nil {
+		return err
+	}
+
+	builder.withURL(urlD)
+	builder.withHeaders(headers)
+	builder.withBody(proxyBody)
+
+	return nil
+}
+
+func parseBody(key string, reqData map[string]interface{}) (map[string]interface{}, error) {
+	data, ok := reqData[key]
+	if !ok {
+		return map[string]interface{}{}, nil
+	}
+
+	res, ok := data.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("invalid body data")
+	}
+
+	return res, nil
+}
+
+func parseURL(allowInsecure bool, key string, reqData map[string]interface{}) (*url.URL, error) {
+	data, ok := reqData[key]
 	if !ok {
 		return nil, errors.New("url is empty")
+	}
+
+	rawURL, ok := data.(string)
+	if !ok {
+		return nil, errors.New("invalid url data")
 	}
 
 	u, err := url.Parse(rawURL)
@@ -119,6 +160,7 @@ func parseURL(allowInsecure bool, key string, params map[string][]string) (*url.
 		return u, nil
 	}
 
+	//TODO: MOVE CONSTANT TO CONFIG OR SOMEWHERE ELSE
 	if u.Scheme != "https" || u.Port() != "443" {
 		return nil, errors.New("url is not https")
 	}
@@ -126,31 +168,27 @@ func parseURL(allowInsecure bool, key string, params map[string][]string) (*url.
 	return u, nil
 }
 
-func parseHeaders(key string, params map[string][]string) (http.Header, error) {
-	var res http.Header
+func parseHeaders(key string, reqData map[string]interface{}) (http.Header, error) {
+	res := http.Header{}
 
-	headersData := params[key]
-	if len(headersData) == 0 {
+	data, ok := reqData[key]
+	if !ok {
 		return res, nil
 	}
 
-	if len(headersData[0]) == 0 {
-		return nil, errors.New("headers are empty")
+	rawData, ok := data.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("invalid headers data")
 	}
 
-	err := json.Unmarshal([]byte(headersData[0]), &res)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(res) == 0 {
-		return nil, errors.New("headers are empty")
+	for key, val := range rawData {
+		res.Add(key, val.([]interface{})[0].(string))
 	}
 
 	return res, nil
 }
 
-func getFirst(key string, params map[string][]string) (string, bool) {
+func getFirstHeader(key string, params map[string][]string) (string, bool) {
 	res := params[key]
 	if len(res) == 0 || len(res[0]) == 0 {
 		return "", false

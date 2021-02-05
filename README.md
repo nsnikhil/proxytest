@@ -18,5 +18,12 @@ make local-http-serve
 
 #### Sample Request
 ```
-http://localhost:8080/proxy?client-id=1234&url=http://localhost:8081/random&method=GET&headers={"A": ["1"]}&body={"B": 2}
+curl --location --request GET 'http://localhost:8089/proxy?client-id=1234&method=GET' \
+--header 'client-id: 1234' \
+--header 'method: GET' \
+--data-raw '{
+    "url":"http://localhost:8081/random",
+    "headers":{"A": ["1"]},
+    "body":{"B": 2}
+}'
 ```

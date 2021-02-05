@@ -10,7 +10,7 @@ import (
 )
 
 type Service interface {
-	Proxy(map[string][]string) (*http.Response, error)
+	Proxy(*http.Request) (*http.Response, error)
 }
 
 type proxyService struct {
@@ -19,10 +19,10 @@ type proxyService struct {
 	httpClient  client.HTTPClient
 }
 
-func (ps *proxyService) Proxy(params map[string][]string) (*http.Response, error) {
+func (ps *proxyService) Proxy(req *http.Request) (*http.Response, error) {
 	wrap := func(err error) error { return liberr.WithOp("Service.Proxy", err) }
 
-	requestData, err := ps.parser.Parse(params)
+	requestData, err := ps.parser.Parse(req)
 	if err != nil {
 		return nil, wrap(err)
 	}

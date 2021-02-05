@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/require"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"proxytest/pkg/app"
+	"proxytest/pkg/config"
 	"proxytest/pkg/test"
 	"strconv"
 	"testing"
@@ -17,28 +19,12 @@ import (
 
 type proxyAPISuite struct {
 	suite.Suite
+	cfg         config.Config
 	upstreamURL *url.URL
 }
 
-func startServer() {
-	configFile := "../../local.env"
+func startServer(configFile string) {
 	app.StartHTTPServer(configFile)
-}
-
-func (pas *proxyAPISuite) SetupSuite() {
-	rawURL := test.RandInsecureURL()
-	u, err := url.Parse(rawURL)
-	pas.Require().NoError(err)
-
-	go startServer()
-	go startUpStreamServer(pas.T(), u)
-	time.Sleep(time.Second)
-
-	pas.upstreamURL = u
-}
-
-func TestProxyAPI(t *testing.T) {
-	suite.Run(t, new(proxyAPISuite))
 }
 
 func startUpStreamServer(t *testing.T, url *url.URL) {
@@ -56,34 +42,50 @@ func startUpStreamServer(t *testing.T, url *url.URL) {
 		_, _ = resp.Write([]byte(fmt.Sprintf("%d", c)))
 	})
 
+	fmt.Printf("proxy listening on :%s\n", url.Port())
 	require.NoError(t, http.ListenAndServe(fmt.Sprintf("%s:%s", url.Hostname(), url.Port()), nil))
 }
 
+func (pas *proxyAPISuite) SetupSuite() {
+	rawURL := test.RandInsecureURL()
+	u, err := url.Parse(rawURL)
+	pas.Require().NoError(err)
+
+	configFile := "../../local.env"
+	pas.cfg = config.NewConfig(configFile)
+
+	go startServer(configFile)
+	go startUpStreamServer(pas.T(), u)
+	time.Sleep(time.Second * 2)
+
+	pas.upstreamURL = u
+}
+
+func TestProxyAPI(t *testing.T) {
+	suite.Run(t, new(proxyAPISuite))
+}
+
 func (pas *proxyAPISuite) TestProxySuccess() {
-	header := http.Header{"A": {"1"}}
-	hb, err := json.Marshal(header)
-	pas.Require().NoError(err)
-
-	body := map[string]interface{}{"B": 2}
-	rb, err := json.Marshal(body)
-	pas.Require().NoError(err)
-
 	params := map[string][]string{
 		test.MockClientIDKey:   {test.RandString(8)},
-		test.MockURLKey:        {pas.upstreamURL.String()},
-		test.MockHeadersKey:    {string(hb)},
 		test.MockHttpMethodKey: {http.MethodGet},
-		test.MockBodyKey:       {string(rb)},
 	}
 
-	req, err := http.NewRequest(http.MethodGet, buildURL(pas.T(), params), nil)
+	proxyBody := map[string]interface{}{
+		test.MockURLKey:     pas.upstreamURL.String(),
+		test.MockHeadersKey: http.Header{"A": {"1"}},
+		test.MockBodyKey:    map[string]interface{}{"B": 2},
+	}
+
+	rb, err := json.Marshal(proxyBody)
 	pas.Require().NoError(err)
 
-	fmt.Println(buildURL(pas.T(), params))
+	adr := pas.cfg.HTTPServerConfig().Address()
 
-	cl := http.Client{}
+	req, err := http.NewRequest(http.MethodGet, buildURL(pas.T(), adr, params), bytes.NewReader(rb))
+	pas.Require().NoError(err)
 
-	resp, err := cl.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	pas.Require().NoError(err)
 
 	pas.Assert().Equal(http.StatusAccepted, resp.StatusCode)
@@ -94,8 +96,8 @@ func (pas *proxyAPISuite) TestProxySuccess() {
 	pas.Assert().Equal("3", string(b))
 }
 
-func buildURL(t *testing.T, params map[string][]string) string {
-	u, err := url.Parse("http://localhost:8080/proxy")
+func buildURL(t *testing.T, address string, params map[string][]string) string {
+	u, err := url.Parse(fmt.Sprintf("http://localhost%s/proxy", address))
 	require.NoError(t, err)
 
 	q := u.Query()

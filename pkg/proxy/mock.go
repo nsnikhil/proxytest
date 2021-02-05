@@ -9,7 +9,7 @@ type MockService struct {
 	mock.Mock
 }
 
-func (mock *MockService) Proxy(params map[string][]string) (*http.Response, error) {
-	args := mock.Called(params)
+func (mock *MockService) Proxy(req *http.Request) (*http.Response, error) {
+	args := mock.Called(req)
 	return args.Get(0).(*http.Response), args.Error(1)
 }

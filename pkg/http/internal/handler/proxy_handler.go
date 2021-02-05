@@ -14,13 +14,13 @@ type ProxyHandler struct {
 func (ph *ProxyHandler) Proxy(resp http.ResponseWriter, req *http.Request) error {
 	warp := func(err error) error { return liberr.WithOp("ProxyHandler.Proxy", err) }
 
-	proxyResp, err := ph.service.Proxy(req.URL.Query())
+	proxyResp, err := ph.service.Proxy(req)
 	if err != nil {
 		return warp(err)
 	}
 
 	for key, value := range proxyResp.Header {
-		resp.Header().Set(key, value[0])
+		resp.Header().Add(key, value[0])
 	}
 
 	resp.WriteHeader(proxyResp.StatusCode)

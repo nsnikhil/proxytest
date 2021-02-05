@@ -9,8 +9,8 @@ type MockParser struct {
 	mock.Mock
 }
 
-func (mock *MockParser) Parse(params map[string][]string) (RequestData, error) {
-	args := mock.Called(params)
+func (mock *MockParser) Parse(req *http.Request) (RequestData, error) {
+	args := mock.Called(req)
 	return args.Get(0).(RequestData), args.Error(1)
 }
 

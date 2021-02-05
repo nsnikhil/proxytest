@@ -1,17 +1,15 @@
 package test
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"math/rand"
 	"net/http"
 	"strings"
-	"testing"
 	"time"
 )
 
 const (
+	EmptyString       = ""
 	letters           = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	MockClientIDKey   = "client-id"
 	MockURLKey        = "url"
@@ -25,23 +23,16 @@ var httpMethods = []string{
 	http.MethodConnect, http.MethodOptions, http.MethodTrace,
 }
 
-type dummy struct {
-	Key   int    `json:"id"`
-	Value string `json:"value"`
-}
-
 func RandHTTPMethod() string {
 	idx := RandInt(0, len(httpMethods)-1)
 	return httpMethods[idx]
 }
 
-func RandBody(t *testing.T) string {
-	d := dummy{Key: RandInt(10, 100), Value: RandString(8)}
-
-	b, err := json.Marshal(&d)
-	require.NoError(t, err)
-
-	return string(b)
+func RandBody() map[string]interface{} {
+	return map[string]interface{}{
+		RandString(4): RandInt(10, 100),
+		RandString(6): RandString(8),
+	}
 }
 
 func RandInt(min, max int) int {
@@ -53,13 +44,8 @@ func RandString(n int) string {
 	return randStringFrom(n, letters)
 }
 
-func RandHeader(t *testing.T) string {
-	h := http.Header{RandString(2): []string{RandString(4)}}
-
-	hb, err := json.Marshal(&h)
-	require.NoError(t, err)
-
-	return string(hb)
+func RandHeader() http.Header {
+	return http.Header{RandString(2): []string{RandString(4)}}
 }
 
 func RandURL() string {

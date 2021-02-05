@@ -22,54 +22,57 @@ import (
 func TestProxySuccess(t *testing.T) {
 	params := map[string][]string{
 		test.MockClientIDKey:   {test.RandString(8)},
-		test.MockURLKey:        {test.RandURL()},
-		test.MockHeadersKey:    {test.RandHeader(t)},
 		test.MockHttpMethodKey: {test.RandHTTPMethod()},
-		test.MockBodyKey:       {test.RandBody(t)},
 	}
 
-	proxyRespBody := test.RandBody(t)
+	proxyBody := map[string]interface{}{
+		test.MockURLKey:     test.RandURL(),
+		test.MockHeadersKey: test.RandHeader(),
+		test.MockBodyKey:    test.RandBody(),
+	}
 
-	prb, err := json.Marshal(proxyRespBody)
+	b, err := json.Marshal(proxyBody)
 	require.NoError(t, err)
 
-	headers := http.Header{
-		"A":            {"1"},
-		"Content-Type": []string{"application/json"},
-	}
+	r, err := http.NewRequest(http.MethodGet, buildURL(t, params), bytes.NewReader(b))
+	require.NoError(t, err)
 
-	proxyResp := &http.Response{
+	respHeader := http.Header{"Key": {"val"}}
+
+	data := map[string]interface{}{"key": "val"}
+	respBody, err := json.Marshal(&data)
+	require.NoError(t, err)
+
+	resp := &http.Response{
 		StatusCode: http.StatusAccepted,
-		Header:     headers,
-		Body:       ioutil.NopCloser(bytes.NewReader(prb)),
+		Header:     respHeader,
+		Body:       ioutil.NopCloser(bytes.NewReader(respBody)),
 	}
 
 	mockService := &proxy.MockService{}
-	mockService.On("Proxy", params).Return(proxyResp, nil)
+	mockService.On("Proxy", r).Return(resp, nil)
 
 	proxyHandler := handler.NewProxyHandler(mockService)
 
 	w := httptest.NewRecorder()
 
-	r, err := http.NewRequest(http.MethodGet, buildURL(t, params), nil)
-	require.NoError(t, err)
-
 	mdl.WithErrorHandler(&reporters.MockLogger{}, proxyHandler.Proxy)(w, r)
 
 	assert.Equal(t, http.StatusAccepted, w.Code)
-	assert.Equal(t, headers, w.Header())
+	assert.Equal(t, respHeader, w.Header())
 
 	rb, err := ioutil.ReadAll(w.Body)
 	require.NoError(t, err)
 
-	assert.Equal(t, prb, rb)
+	assert.Equal(t, respBody, rb)
 }
 
 func TestProxyFailure(t *testing.T) {
-	params := map[string][]string{}
+	r, err := http.NewRequest(http.MethodGet, buildURL(t, map[string][]string{}), nil)
+	require.NoError(t, err)
 
 	mockService := &proxy.MockService{}
-	mockService.On("Proxy", params).Return(&http.Response{}, errors.New("service error"))
+	mockService.On("Proxy", r).Return(&http.Response{}, errors.New("service error"))
 
 	mockLogger := &reporters.MockLogger{}
 	mockLogger.On("Error", mock.Anything, mock.Anything)
@@ -77,9 +80,6 @@ func TestProxyFailure(t *testing.T) {
 	proxyHandler := handler.NewProxyHandler(mockService)
 
 	w := httptest.NewRecorder()
-
-	r, err := http.NewRequest(http.MethodGet, buildURL(t, params), nil)
-	require.NoError(t, err)
 
 	mdl.WithErrorHandler(mockLogger, proxyHandler.Proxy)(w, r)
 

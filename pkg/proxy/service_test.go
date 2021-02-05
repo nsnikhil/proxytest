@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/stretchr/testify/suite"
 	"net/http"
+	"net/url"
 	"proxytest/pkg/client"
 	"proxytest/pkg/parser"
 	"proxytest/pkg/proxy"
@@ -17,57 +18,58 @@ import (
 type serviceSuite struct {
 	params      map[string][]string
 	parser      parser.Parser
+	clientID    string
 	client      client.HTTPClient
 	rateLimiter rate_limiter.RateLimiter
 	proxyReq    *http.Request
 	suite.Suite
 }
 
-func getVal(key string, params map[string][]string) string {
-	return params[key][0]
-}
-
 func (ss *serviceSuite) SetupSuite() {
-	clientId := test.RandString(8)
-	rawURL := test.RandURL()
-
-	headers := http.Header{"A": {"1"}}
-	hb, err := json.Marshal(headers)
-	ss.Require().NoError(err)
-
+	clientID := test.RandString(8)
 	method := test.RandHTTPMethod()
 
-	body := map[string]interface{}{"key": "val"}
-	rb, err := json.Marshal(&body)
-	ss.Require().NoError(err)
-
 	params := map[string][]string{
-		test.MockClientIDKey:   {clientId},
-		test.MockURLKey:        {rawURL},
-		test.MockHeadersKey:    {string(hb)},
+		test.MockClientIDKey:   {clientID},
 		test.MockHttpMethodKey: {method},
-		test.MockBodyKey:       {string(rb)},
 	}
 
+	u, err := url.Parse(test.RandURL())
 	ss.Require().NoError(err)
 
-	proxyReq, err := http.NewRequest(method, rawURL, bytes.NewReader(rb))
+	q := u.Query()
+	for k, v := range params {
+		q.Add(k, v[0])
+	}
+
+	u.RawQuery = q.Encode()
+
+	proxyBody := map[string]interface{}{
+		test.MockURLKey:     test.RandURL(),
+		test.MockHeadersKey: test.RandHeader(),
+		test.MockBodyKey:    test.RandBody(),
+	}
+
+	b, err := json.Marshal(proxyBody)
 	ss.Require().NoError(err)
-	proxyReq.Header = headers
+
+	proxyReq, err := http.NewRequest(test.RandHTTPMethod(), u.String(), bytes.NewReader(b))
+	ss.Require().NoError(err)
 
 	mockRequestData := &parser.MockRequestData{}
-	mockRequestData.On("ClientID").Return(clientId)
+	mockRequestData.On("ClientID").Return(clientID)
 	mockRequestData.On("ToHTTPRequest").Return(proxyReq, nil)
 
 	mockParser := &parser.MockParser{}
-	mockParser.On("Parse", params).Return(mockRequestData, nil)
+	mockParser.On("Parse", proxyReq).Return(mockRequestData, nil)
 
 	mockRateLimiter := &rate_limiter.MockRateLimiter{}
-	mockRateLimiter.On("Check", clientId).Return(true)
+	mockRateLimiter.On("Check", clientID).Return(true)
 
 	mockHTTPClient := &client.MockHTTPClient{}
 	mockHTTPClient.On("Do", proxyReq).Return(&http.Response{}, nil)
 
+	ss.clientID = clientID
 	ss.params = params
 	ss.parser = mockParser
 	ss.rateLimiter = mockRateLimiter
@@ -82,7 +84,7 @@ func TestProxyService(t *testing.T) {
 func (ss *serviceSuite) TestProxySuccess() {
 	svc := proxy.NewService(ss.parser, ss.rateLimiter, ss.client)
 
-	resp, err := svc.Proxy(ss.params)
+	resp, err := svc.Proxy(ss.proxyReq)
 	ss.Assert().NotNil(resp)
 	ss.Assert().NoError(err)
 }
@@ -96,7 +98,10 @@ func (ss *serviceSuite) TestProxyFailure() {
 		"test failure when parser return error": {
 			parser: func() parser.Parser {
 				mockParser := &parser.MockParser{}
-				mockParser.On("Parse", ss.params).Return(&parser.MockRequestData{}, errors.New("failed to parse"))
+				mockParser.On(
+					"Parse",
+					ss.proxyReq,
+				).Return(&parser.MockRequestData{}, errors.New("failed to parse"))
 				return mockParser
 			},
 			client:      func() client.HTTPClient { return ss.client },
@@ -107,19 +112,19 @@ func (ss *serviceSuite) TestProxyFailure() {
 			client: func() client.HTTPClient { return ss.client },
 			rateLimiter: func() rate_limiter.RateLimiter {
 				mockRateLimiter := &rate_limiter.MockRateLimiter{}
-				mockRateLimiter.On("Check", getVal(test.MockClientIDKey, ss.params)).Return(false)
-
+				mockRateLimiter.On("Check", ss.clientID).Return(false)
 				return mockRateLimiter
 			},
 		},
-		"test failure when conversion to request fails": {
+		"test failure when conversion to http request fails": {
 			parser: func() parser.Parser {
 				mockRequestData := &parser.MockRequestData{}
-				mockRequestData.On("ClientID").Return(getVal(test.MockClientIDKey, ss.params))
-				mockRequestData.On("ToHTTPRequest").Return(&http.Request{}, errors.New("failed to create new request"))
+				mockRequestData.On("ClientID").Return(ss.clientID)
+				mockRequestData.On("ToHTTPRequest").
+					Return(&http.Request{}, errors.New("failed to create new request"))
 
 				mockParser := &parser.MockParser{}
-				mockParser.On("Parse", ss.params).Return(mockRequestData, nil)
+				mockParser.On("Parse", ss.proxyReq).Return(mockRequestData, nil)
 
 				return mockParser
 			},
@@ -130,7 +135,8 @@ func (ss *serviceSuite) TestProxyFailure() {
 			parser: func() parser.Parser { return ss.parser },
 			client: func() client.HTTPClient {
 				mockHTTPClient := &client.MockHTTPClient{}
-				mockHTTPClient.On("Do", ss.proxyReq).Return(&http.Response{}, errors.New("client error"))
+				mockHTTPClient.On("Do", ss.proxyReq).
+					Return(&http.Response{}, errors.New("client error"))
 
 				return mockHTTPClient
 			},
@@ -142,7 +148,7 @@ func (ss *serviceSuite) TestProxyFailure() {
 		ss.Run(name, func() {
 			svc := proxy.NewService(testCase.parser(), testCase.rateLimiter(), testCase.client())
 
-			resp, err := svc.Proxy(ss.params)
+			resp, err := svc.Proxy(ss.proxyReq)
 			ss.Assert().Nil(resp)
 			ss.Assert().Error(err)
 		})
